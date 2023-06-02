@@ -56,9 +56,11 @@ foreach i $projs {
 }
 
 # set the repo for the custom bsp libraries
-puts "Adding repository $bsp_libs"
-repo -set $bsp_libs
-repo -scan
+if {[file exists $bsp_libs]} {
+    puts "Adding repository $bsp_libs"
+    repo -set $bsp_libs
+    repo -scan
+}
 
 # update hardware specification file
 puts "Updating hw spec $hdf"
