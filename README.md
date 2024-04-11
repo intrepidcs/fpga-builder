@@ -13,6 +13,14 @@ FPGA_BUILDER_DIR = THIS_DIR / "some/relative/path"
 sys.path.append(FPGA_BUILDER_DIR)
 ```
 
+# Installing dependencies
+
+Dependencies are listed in `requirements.txt` and can be installed with the following:
+
+```python
+pip install -r requirements.txt
+```
+
 # Integrating with other projects
 
 Add a `run.py` script similar to `example/run.py`. Point to the project TCL build script to auto build the project. Point to the SDK hardware platform for deploying.
