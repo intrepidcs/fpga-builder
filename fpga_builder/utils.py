@@ -34,8 +34,6 @@ Utils for fpga build and deploy mechanism
 
 """
 
-from ast import Import
-from dataclasses import MISSING
 import subprocess
 from pathlib import Path
 import sys
@@ -213,7 +211,7 @@ def repo_clean():
         True if the repo is in a clean state
 
     """
-    cmd = f"git status --porcelain"
+    cmd = "git status --porcelain"
     output = subprocess.run(cmd, capture_output=True, shell=True).stdout
     if output:
         output = cmd + "\n" + output.decode("utf-8")

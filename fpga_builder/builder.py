@@ -34,13 +34,11 @@ General script for building FPGA designs
 
 """
 
-import subprocess
 import argparse
 from pathlib import Path
 import shutil
 import socket
 import sys
-from pprint import pprint
 from os import environ
 from .utils import (
     warning,

@@ -35,16 +35,14 @@ General script for deploying FPGA designs
 """
 
 import shutil
-import subprocess
 import argparse
 from pathlib import Path
-from os import environ, pathsep
+from os import environ
 from .utils import (
     query_yes_no,
     repo_clean,
     run_cmd,
     FILE_DIR,
-    caller_dir,
     success,
     warning,
     err,
@@ -157,7 +155,7 @@ def deploy_(
             )
         run_cmd(f'git commit -m "{msg}"', cwd=checkout_dir)
         if for_gitlab:
-            run_cmd(f"git push", cwd=checkout_dir)
+            run_cmd("git push", cwd=checkout_dir)
     elif not repo_clean():
         print(
             "****WARNING: REPO NOT CLEAN, THIS SHOULD NOT BE THE OFFICIAL MR BUILD****"
