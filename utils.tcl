@@ -130,6 +130,7 @@ proc build {proj_name top_name proj_dir} {
   } else {
     puts "Timing met with $worst_slack ns of slack"
   }
+
   # Utilization
   set util_rpt [file normalize "$stats_file/../utilization.rpt"]
   report_utilization -file $util_rpt
@@ -148,8 +149,7 @@ proc build {proj_name top_name proj_dir} {
   } else {
     puts "LUT utilization is $lut_util %"
   }
-  set util_hier_rpt [file normalize "$stats_file/../utilization_hierarchical.rpt"]
-  report_utilization -hierarchical -file $util_hier_rpt
+
   set ram_line [lindex [grep "Block RAM Tile" $util_rpt] 0]
   set ram_line_split [split $ram_line "|"]
   global ram_util
@@ -159,6 +159,10 @@ proc build {proj_name top_name proj_dir} {
   } else {
     puts "RAM utilization is $ram_util %"
   }
+
+  set util_hier_rpt [file normalize "$stats_file/../utilization_hierarchical.rpt"]
+  report_utilization -hierarchical -file $util_hier_rpt
+
   # Power
   set power_rpt [file normalize "$stats_file/../power.rpt"]
   report_power -file $power_rpt
