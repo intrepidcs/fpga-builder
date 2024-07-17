@@ -153,9 +153,9 @@ proc build {proj_name top_name proj_dir} {
   set ram_line [lindex [grep "Block RAM Tile" $util_rpt] 0]
   set ram_line_split [split $ram_line "|"]
   global ram_util
-  set ram_util [string trim [lindex $ram_line_split 5]]
+  set ram_util [string trim [lindex $ram_line_split $lut_column]]
   if { $ram_util >= 85} {
-    puts "CRITICAL WARNING: Part RAM is nearly full ($lut_util %), expect issues inserting ILA!!"
+    puts "CRITICAL WARNING: Part RAM is nearly full ($ram_util %), expect issues inserting ILA!!"
   } else {
     puts "RAM utilization is $ram_util %"
   }
