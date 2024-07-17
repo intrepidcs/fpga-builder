@@ -134,9 +134,15 @@ proc build {proj_name top_name proj_dir} {
   set util_rpt [file normalize "$stats_file/../utilization.rpt"]
   report_utilization -file $util_rpt
   set lut_line [lindex [grep "Slice LUTs" $util_rpt] 0]
+  if { $lut_line == ""} {
+    set lut_line [lindex [grep "CLB LUTs" $util_rpt] 0]
+    set lut_column 6
+  } else {
+    set lut_column 5
+  }
   set lut_line_split [split $lut_line "|"]
   global lut_util
-  set lut_util [string trim [lindex $lut_line_split 5]]
+  set lut_util [string trim [lindex $lut_line_split $lut_column]]
   if { $lut_util >= 80} {
     puts "CRITICAL WARNING: Part is nearly full ($lut_util %), expect timing problems if anything changed!!"
   } else {
