@@ -64,6 +64,7 @@ set setup_time 0
 set worst_slack 0
 set lut_util 0
 set ram_util 0
+set ultra_ram_util 0
 set total_power 0
 
 proc build {proj_name top_name proj_dir} {
@@ -160,6 +161,16 @@ proc build {proj_name top_name proj_dir} {
     puts "RAM utilization is $ram_util %"
   }
 
+  set uram_line [lindex [grep "URAM" $util_rpt] 0]
+  set uram_line_split [split $uram_line "|"]
+  global ultra_ram_util
+  set ultra_ram_util [string trim [lindex $uram_line_split $lut_column]]
+  if { $ultra_ram_util >= 85} {
+    puts "CRITICAL WARNING: Part UltraRAM is nearly full ($ultra_ram_util %)!!"
+  } else {
+    puts "UltraRAM utilization is $ultra_ram_util %"
+  }
+
   set util_hier_rpt [file normalize "$stats_file/../utilization_hierarchical.rpt"]
   report_utilization -hierarchical -file $util_hier_rpt
 
@@ -238,6 +249,7 @@ proc report_stats {} {
   global worst_slack
   global lut_util
   global ram_util
+  global ultra_ram_util
   global total_power
   set total_time [expr [clock seconds] - $total_start]
   
@@ -254,6 +266,7 @@ proc report_stats {} {
   puts $stats_chan "worst_slack:    $worst_slack ns"
   puts $stats_chan "lut_util:       ${lut_util}%"
   puts $stats_chan "ram_util:       ${ram_util}%"
+  puts $stats_chan "ultra_ram_util: ${ultra_ram_util}%"
   puts $stats_chan "total_power:    $total_power W"
   close $stats_chan
 }
