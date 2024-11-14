@@ -99,7 +99,12 @@ def build_default(
     if args.device == "all":
         devices = device_names
     else:
-        devices = [args.device]
+        # remove duplicates and maintain order
+        devices = sorted(set(args.device), key=lambda x: args.device.index(x))
+        if len(devices) != len(args.device):
+            err("ERROR: Device specified multiple times")
+            exit(1)
+
     do_build = args.command in BUILD_COMMANDS
     do_deploy = args.command in DEPLOY_COMMANDS
     if do_build and args.gui:
@@ -441,7 +446,7 @@ def get_parser(device_names):
     targets.append("all")
     parsers = [build_parser, deploy_parser, build_deploy_parser]
     if len(device_names) > 1:
-        nargs = None
+        nargs = "+"
         default = None
     else:
         # This makes it optional if only one device
@@ -450,7 +455,7 @@ def get_parser(device_names):
     for parser in parsers:
         parser.add_argument(
             "device",
-            help="The name of the device to build",
+            help="The names of the devices to build. Multiple can be specified by listing 'device1 device2'.",
             choices=targets,
             default=default,
             nargs=nargs,
