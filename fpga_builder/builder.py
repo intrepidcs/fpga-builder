@@ -99,6 +99,9 @@ def build_default(
     if args.device == "all":
         devices = device_names
     else:
+        if isinstance(args.device, str):
+            args.device = [args.device]
+
         # remove duplicates and maintain order
         devices = sorted(set(args.device), key=lambda x: args.device.index(x))
         if len(devices) != len(args.device):
