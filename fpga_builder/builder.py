@@ -96,7 +96,7 @@ def build_default(
     """
     parser = get_parser(device_names)
     args = parser.parse_args()
-    if args.device == "all":
+    if len(args.device) == 1 and args.device[0] == "all":
         devices = device_names
     else:
         if isinstance(args.device, str):
