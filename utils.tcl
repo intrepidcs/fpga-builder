@@ -79,6 +79,7 @@ proc build {proj_name top_name proj_dir} {
   global bitstream_time
   global stats_file
   global max_threads
+  global synth_only
 
   set output_dir [file normalize $proj_dir/../output]
 
@@ -104,32 +105,33 @@ proc build {proj_name top_name proj_dir} {
     exit 1
   }
   set synth_time [expr [clock seconds] - $start]
-
-  exit_if_synth_only
+  open_run synth_1
   
-  # Impl
-  set start [clock seconds]
-  launch_runs -jobs $max_threads -verbose impl_1
-  wait_on_run impl_1
-  if {[get_property PROGRESS [get_runs impl_1]] != "100%"} {
-    error "ERROR: Implementation failed"
-    exit 1
-  }
-  set impl_time [expr [clock seconds] - $start]
-  
-  # Report
-  set start [clock seconds]
-  open_run impl_1
-  set timing_rpt [file normalize "$stats_file/../timing.rpt"]
-  report_timing_summary -delay_type min_max -report_unconstrained -max_paths 10 -input_pins -file $timing_rpt
-  global worst_slack
-  set worst_slack [get_property SLACK [get_timing_paths -delay_type min_max -nworst 1]]
-  set timing_pass [expr {$worst_slack >= 0}]
-  if {$timing_pass == 0} {
-    puts "ERROR: Failed to meet timing! Worst path slack was $worst_slack"
-    exit 1
-  } else {
-    puts "Timing met with $worst_slack ns of slack"
+  if {$synth_only != 1} {
+    # Impl
+    set start [clock seconds]
+    launch_runs -jobs $max_threads -verbose impl_1
+    wait_on_run impl_1
+    if {[get_property PROGRESS [get_runs impl_1]] != "100%"} {
+      error "ERROR: Implementation failed"
+      exit 1
+    }
+    set impl_time [expr [clock seconds] - $start]
+    
+    # Report
+    set start [clock seconds]
+    open_run impl_1
+    set timing_rpt [file normalize "$stats_file/../timing.rpt"]
+    report_timing_summary -delay_type min_max -report_unconstrained -max_paths 10 -input_pins -file $timing_rpt
+    global worst_slack
+    set worst_slack [get_property SLACK [get_timing_paths -delay_type min_max -nworst 1]]
+    set timing_pass [expr {$worst_slack >= 0}]
+    if {$timing_pass == 0} {
+      puts "ERROR: Failed to meet timing! Worst path slack was $worst_slack"
+      exit 1
+    } else {
+      puts "Timing met with $worst_slack ns of slack"
+    }
   }
 
   # Utilization
@@ -174,6 +176,8 @@ proc build {proj_name top_name proj_dir} {
   set util_hier_rpt [file normalize "$stats_file/../utilization_hierarchical.rpt"]
   report_utilization -hierarchical -file $util_hier_rpt
 
+  exit_if_synth_only
+
   # Power
   set power_rpt [file normalize "$stats_file/../power.rpt"]
   report_power -file $power_rpt
@@ -184,6 +188,7 @@ proc build {proj_name top_name proj_dir} {
   set report_time [expr [clock seconds] - $start]
   
   exit_if_impl_only
+  
   # Bitstream
   set start [clock seconds]
   launch_runs impl_1 -to_step write_bitstream -jobs $max_threads
