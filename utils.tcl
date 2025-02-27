@@ -64,6 +64,9 @@ set setup_time 0
 set worst_slack 0
 set lut_util 0
 set ram_util 0
+set dsp_util 0
+set mmcm_util 0
+set pll_util 0
 set ultra_ram_util 0
 set total_power 0
 
@@ -173,6 +176,36 @@ proc build {proj_name top_name proj_dir} {
     puts "UltraRAM utilization is $ultra_ram_util %"
   }
 
+  set dsp_line [lindex [grep "DSPs" $util_rpt] 0]
+  set dsp_line_split [split $dsp_line "|"]
+  global dsp_util
+  set dsp_util [string trim [lindex $dsp_line_split $lut_column]]
+  if { $dsp_util >= 85} {
+    puts "CRITICAL WARNING: Part DSPs are nearly full ($dsp_util %)!!"
+  } else {
+    puts "DSP utilization is $dsp_util %"
+  }
+
+  set mmcm_line [lindex [grep "MMCM" $util_rpt] 0]
+  set mmcm_line_split [split $mmcm_line "|"]
+  global mmcm_util
+  set mmcm_util [string trim [lindex $mmcm_line_split $lut_column]]
+  if { $mmcm_util >= 80} {
+    puts "CRITICAL WARNING: Part MMCMs are nearly full ($mmcm_util %)!!"
+  } else {
+    puts "MMCM utilization is $mmcm_util %"
+  }
+
+  set pll_line [lindex [grep "PLL" $util_rpt] 0]
+  set pll_line_split [split $pll_line "|"]
+  global pll_util
+  set pll_util [string trim [lindex $pll_line_split $lut_column]]
+  if { $pll_util >= 80} {
+    puts "CRITICAL WARNING: Part PLLs are nearly full ($pll_util %)!!"
+  } else {
+    puts "PLL utilization is $pll_util %"
+  }
+
   set util_hier_rpt [file normalize "$stats_file/../utilization_hierarchical.rpt"]
   report_utilization -hierarchical -file $util_hier_rpt
 
@@ -255,6 +288,9 @@ proc report_stats {} {
   global lut_util
   global ram_util
   global ultra_ram_util
+  global dsp_util
+  global mmcm_util
+  global pll_util
   global total_power
   set total_time [expr [clock seconds] - $total_start]
   
@@ -272,6 +308,9 @@ proc report_stats {} {
   puts $stats_chan "lut_util:       ${lut_util}%"
   puts $stats_chan "ram_util:       ${ram_util}%"
   puts $stats_chan "ultra_ram_util: ${ultra_ram_util}%"
+  puts $stats_chan "dsp_util:       ${dsp_util}%"
+  puts $stats_chan "mmcm_util:      ${mmcm_util}%"
+  puts $stats_chan "pll_util:       ${pll_util}%"
   puts $stats_chan "total_power:    $total_power W"
   close $stats_chan
 }
