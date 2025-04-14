@@ -37,5 +37,5 @@ for loader, module_name, is_pkg in pkgutil.walk_packages(__path__):
     if "utils" in module_name:
         continue
     __all__.append(module_name)
-    _module = loader.find_module(module_name).load_module(module_name)
+    _module = loader.find_spec(module_name).loader.load_module(module_name)
     globals()[module_name] = _module
