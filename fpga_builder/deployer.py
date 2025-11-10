@@ -249,7 +249,7 @@ def get_current_commit_url():
     url = get_remote_url()
     # Reformat into url-y version
     url = url.replace(":", "/")
-    url = url.replace("git@", "http://")
+    url = url.replace("git@", "https://")
     url = url.replace(".git", "")
     url += "/-/commit/" + get_current_commit_hash()
     return url
