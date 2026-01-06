@@ -185,20 +185,23 @@ def build_default(
             print(f"Deploying {device}...")
             # Deploy stuff
             if deploy_hw_dirs:
-                output_dir = deploy_hw_dirs[device]
+                if isinstance(deploy_hw_dirs[device], list):
+                    output_dirs = deploy_hw_dirs[device]
+                else:
+                    output_dirs = [deploy_hw_dirs[device]]
             else:
-                output_dir = None
-            if vivado_versions:
-                vivado_version = vivado_versions[device]
-            else:
-                vivado_version = None
-            deployer.deploy(
-                args,
-                device,
-                caller_dir(),
-                output_dir,
-                vivado_version=vivado_version,
-            )
+                output_dirs=[None]
+
+            vivado_version = vivado_versions[device] if vivado_versions else None
+
+            for output_dir in output_dirs:
+                deployer.deploy(
+                    args,
+                    device,
+                    caller_dir(),
+                    output_dir,
+                    vivado_version=vivado_version,
+                )
 
 
 def open_vivado_gui(project, vivado_version, run_dir):
