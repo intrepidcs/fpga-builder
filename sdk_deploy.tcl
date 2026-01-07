@@ -35,25 +35,44 @@ puts "Setting workspace to $ws"
 setws $ws
 
 set projs [getprojects -type all]
+puts "projs=$projs"
+set hw_proj [getprojects -type hw]
+puts "hw_proj=$hw_proj"
+
+# Check if workspace is fresh (no projects)
+if {[llength $hw_proj] == 0} {
+	puts "Fresh workspace detected, importing all projects from $ws"
+	importprojects $ws
+} else {
+	set hw_proj [getprojects -type hw]
+	puts "hw_proj=$hw_proj"
+	set bsp_projs [getprojects -type bsp]
+	puts "bsp_projs=$bsp_projs"
+	set sw_projs [getprojects -type app]
+	puts "sw_projs=$sw_projs"
+	
+	# Remove the projects
+	# this clears the workspace to fix issues with removed files
+	puts "Removing projects..."
+	foreach i $projs {
+		catch { deleteprojects -name $i -workspace-only }
+	}
+	
+	# import the projects
+	puts "Importing projects..."
+	foreach i $projs {
+		importprojects $ws/$i
+	}
+}
+
+# Refresh project lists after import
+set projs [getprojects -type all]
 set hw_proj [getprojects -type hw]
 puts "hw_proj=$hw_proj"
 set bsp_projs [getprojects -type bsp]
 puts "bsp_projs=$bsp_projs"
 set sw_projs [getprojects -type app]
 puts "sw_projs=$sw_projs"
-
-# Remove the projects
-# this clears the workspace to fix issues with removed files
-puts "Removing projects..."
-foreach i $projs {
-	catch { deleteprojects -name $i -workspace-only }
-}
-
-# import the projects
-puts "Importing projects..."
-foreach i $projs {
-	importprojects $ws/$i
-}
 
 # set the repo for the custom bsp libraries
 if {[file exists $bsp_libs]} {
