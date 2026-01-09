@@ -251,6 +251,9 @@ def get_current_commit_url():
     url = url.replace(":", "/")
     url = url.replace("git@", "https://")
     url = url.replace(".git", "")
+    # Remove credentials if present
+    if "@" in url:
+        url = url.split("//")[0] + "//" + url.split("@")[-1]
     url += "/-/commit/" + get_current_commit_hash()
     return url
 
