@@ -37,6 +37,7 @@ Utils for fpga build and deploy mechanism
 import subprocess
 from pathlib import Path
 import sys
+from typing import Optional, Callable, Union, List, Tuple
 
 try:
     from colorama import Fore, Style, init as colorama_init
@@ -58,82 +59,114 @@ default_print = print
 XILINX_BIN_EXTENSION = ".bat" if sys.platform == "win32" else ""
 
 
-def run_cmd(cmd, cwd=None, silent=False, line_handler=None, blocking=True):
+def run_cmd(
+    cmd: str,
+    cwd: Optional[Union[str, Path]] = None,
+    silent: bool = False,
+    line_handler: Optional[Callable[[str], None]] = None,
+    blocking: bool = True
+) -> int:
     """
-    Simply runs the provided command in a subshell
-    Throws an exception if return code was non zero
+    Run a command in a subshell. Throws an exception if return code was non-zero.
 
     Args:
         cmd:          The command to run
         cwd:          The directory to execute from, set to cwd if None
         silent:       When true, does not print out what command it's running
-        line_handler: Function of a string that is each line.  If not provided, just prints output
-        blocking:     When false, just runs and exits
+        line_handler: Function to handle each line of output. If None, output streams directly.
+        blocking:     When True, waits for completion. When False, starts and returns immediately.
 
     Returns:
-        None
+        Return code of the command (0 for non-blocking)
     """
     if not cwd:
         cwd = Path.cwd()
 
-    def err_msg(p):
-        return f"""
-      command: {cmd}
-      cwd:     {cwd}
-      rc:      {p.returncode}
-    """
+    # Prepare command
+    cmd_escaped = cmd.replace("\\", "\\\\")
+    split_cmd = shlex.split(cmd_escaped)
 
-    if not silent:
-        print()
-        print("=============================================================")
-        print("Running command:")
-        print(cmd)
-        print(f"From directory {cwd}")
+    # Print command info
+    _print_cmd_header(cmd, cwd, silent, blocking)
 
-    cmd = cmd.replace("\\", "\\\\")
-    split_cmd = shlex.split(cmd)
-    if blocking:
-        stdout = subprocess.PIPE
-        stderr = subprocess.STDOUT
-        close_fds = False
-        shell = False
-    else:
-        # TODO See if there's a better way to do this
-        stdout = None
-        stderr = None
-        close_fds = True
-        shell = True
     try:
-        process = subprocess.Popen(
-            split_cmd,
-            stdout=stdout,
-            stderr=stderr,
-            cwd=cwd,
-            close_fds=close_fds,
-            shell=shell,
-        )
+        if blocking:
+            rc = _run_blocking(split_cmd, cwd, line_handler, cmd)
+        else:
+            rc = _run_nonblocking(split_cmd, cwd, cmd)
     except (FileNotFoundError, OSError) as e:
         err(f"Command was {cmd}")
         err(f"Split command was {split_cmd}")
-        raise (e)
-    if not blocking:
-        return 0
-    while process.poll() is None:
-        output = process.stdout.readline()
-        if output:
-            line = output.decode("utf-8").strip()
-            if line_handler:
-                # Specific runners can handle fancy printing with colors and stuff
-                line_handler(line)
-            else:
-                # Otherwise fall back to regular printing
-                print(line)
-    rc = process.poll()
-    if rc != 0:
-        raise Exception(err_msg(process))
+        raise
+
+    _print_cmd_footer(silent)
+    return rc
+
+
+def _print_cmd_header(cmd: str, cwd: Path, silent: bool, blocking: bool) -> None:
+    """Print command execution header."""
+    if not silent:
+        print()
+        print("=============================================================")
+        print(f"Running command{' (non-blocking)' if not blocking else ''}:")
+        print(cmd)
+        print(f"From directory {cwd}")
+
+
+def _print_cmd_footer(silent: bool) -> None:
+    """Print command execution footer."""
     if not silent:
         print("=============================================================")
+
+
+def _run_blocking(
+    split_cmd: List[str],
+    cwd: Path,
+    line_handler: Optional[Callable[[str], None]],
+    original_cmd: str
+) -> int:
+    """Run a blocking command and wait for completion."""
+    if line_handler:
+        # Capture output line by line for custom handling
+        process = subprocess.Popen(
+            split_cmd,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.STDOUT,
+            cwd=cwd,
+        )
+        while True:
+            output = process.stdout.readline()
+            if output == b'' and process.poll() is not None:
+                break
+            if output:
+                line = output.decode("utf-8").strip()
+                line_handler(line)
+        rc = process.returncode
+        if rc != 0:
+            raise subprocess.CalledProcessError(rc, original_cmd)
+    else:
+        # No line handler - let output stream directly (faster)
+        result = subprocess.run(
+            split_cmd,
+            cwd=cwd,
+            check=True,
+            text=True,
+        )
+        rc = result.returncode
     return rc
+
+
+def _run_nonblocking(split_cmd: List[str], cwd: Path) -> int:
+    """Start a command and return immediately."""
+    subprocess.Popen(
+        split_cmd,
+        stdout=None,
+        stderr=None,
+        cwd=cwd,
+        close_fds=True,
+        shell=True,
+    )
+    return 0
 
 
 def err(*args, **kwargs):
@@ -182,7 +215,7 @@ def print(*args, **kwargs):
     default_print(*args, **kwargs)
 
 
-def caller_dir():
+def caller_dir() -> Path:
     """
     Returns the directory of the file that called into the **current context**
     In another words, not what called this function, but what called the function
@@ -200,7 +233,7 @@ def caller_dir():
     return dir
 
 
-def repo_clean():
+def repo_clean() -> Tuple[bool, str]:
     """
     Checks if git repo is in a clean state
 
@@ -229,7 +262,7 @@ def repo_clean():
 
 
 # https://stackoverflow.com/questions/3041986/apt-command-line-interface-like-yes-no-input
-def query_yes_no(question, default="yes", print_func=None):
+def query_yes_no(question: str, default: str = "yes", print_func: Optional[Callable] = None) -> bool:
     """Ask a yes/no question via raw_input() and return their answer.
 
     "question" is a string that is presented to the user.
@@ -263,12 +296,12 @@ def query_yes_no(question, default="yes", print_func=None):
             print_func("Please respond with 'yes' or 'no' " "(or 'y' or 'n').", end="")
 
 
-def check_output(cmd, cwd=None):
+def check_output(cmd: str, cwd: Optional[Union[str, Path]] = None) -> str:
     return subprocess.check_output(shlex.split(cmd), cwd=cwd).decode().strip()
 
 
 # check version to see if Vitis or SDK is being used
-def check_vitis(version):
+def check_vitis(version: str) -> int:
     ver_parts = version.split(".")
     if int(ver_parts[0]) <= 2019 and int(ver_parts[1]) <= 1:
         return 0
