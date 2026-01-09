@@ -456,7 +456,7 @@ def get_parser(device_names):
         default = None
     else:
         # This makes it optional if only one device
-        nargs = "?"
+        nargs = "*"
         default = device_names[0]
     for parser in parsers:
         parser.add_argument(
