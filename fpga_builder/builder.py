@@ -190,7 +190,7 @@ def build_default(
                 else:
                     output_dirs = [deploy_hw_dirs[device]]
             else:
-                output_dirs=[None]
+                output_dirs = [None]
 
             vivado_version = vivado_versions[device] if vivado_versions else None
 

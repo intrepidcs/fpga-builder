@@ -260,7 +260,7 @@ def get_current_commit_url():
 
 def sdk_deploy(checkout_dir, hdf, version):
     ws = hdf.parent.parent
-    bsp_libs = ws.parent.parent /"submodules" / "zynq_bsp_libs"
+    bsp_libs = ws.parent.parent / "submodules" / "zynq_bsp_libs"
     print(ws, bsp_libs, hdf)
     tcl_args = [ws, bsp_libs, hdf]
     run_sdk(SDK_DEPLOY_SCRIPT, tcl_args, version)

@@ -64,7 +64,7 @@ def run_cmd(
     cwd: Optional[Union[str, Path]] = None,
     silent: bool = False,
     line_handler: Optional[Callable[[str], None]] = None,
-    blocking: bool = True
+    blocking: bool = True,
 ) -> int:
     """
     Run a command in a subshell. Throws an exception if return code was non-zero.
@@ -123,7 +123,7 @@ def _run_blocking(
     split_cmd: List[str],
     cwd: Path,
     line_handler: Optional[Callable[[str], None]],
-    original_cmd: str
+    original_cmd: str,
 ) -> int:
     """Run a blocking command and wait for completion."""
     if line_handler:
@@ -136,7 +136,7 @@ def _run_blocking(
         )
         while True:
             output = process.stdout.readline()
-            if output == b'' and process.poll() is not None:
+            if output == b"" and process.poll() is not None:
                 break
             if output:
                 line = output.decode("utf-8").strip()
@@ -262,7 +262,9 @@ def repo_clean() -> Tuple[bool, str]:
 
 
 # https://stackoverflow.com/questions/3041986/apt-command-line-interface-like-yes-no-input
-def query_yes_no(question: str, default: str = "yes", print_func: Optional[Callable] = None) -> bool:
+def query_yes_no(
+    question: str, default: str = "yes", print_func: Optional[Callable] = None
+) -> bool:
     """Ask a yes/no question via raw_input() and return their answer.
 
     "question" is a string that is presented to the user.
