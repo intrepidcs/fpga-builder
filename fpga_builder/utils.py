@@ -93,7 +93,7 @@ def run_cmd(
         if blocking:
             rc = _run_blocking(split_cmd, cwd, line_handler, cmd)
         else:
-            rc = _run_nonblocking(split_cmd, cwd, cmd)
+            rc = _run_nonblocking(split_cmd, cwd)
     except (FileNotFoundError, OSError) as e:
         err(f"Command was {cmd}")
         err(f"Split command was {split_cmd}")
