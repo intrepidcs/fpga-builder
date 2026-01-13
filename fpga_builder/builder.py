@@ -343,10 +343,15 @@ def get_vivado_cmd(version):
     """
     vivado_cmd = shutil.which("vivado")
     if vivado_cmd is not None:
-        vivado_version = Path(vivado_cmd).parent.parent.name
-        if vivado_version == version:
+        vivado_path = Path(vivado_cmd)
+        if (
+            vivado_path.parent.parent.name == version
+            or vivado_path.parent.parent.parent.name == version
+        ):
+            print(f"Found Vivado {version} on PATH at {vivado_cmd}")
             # Easy enough, the one on path was what we wanted
             return vivado_cmd
+
 
     # Didn't find it, look through environment variables
     version_name = version.replace(".", "_")
