@@ -209,6 +209,10 @@ proc build {proj_name top_name proj_dir} {
   set util_hier_rpt [file normalize "$stats_file/../utilization_hierarchical.rpt"]
   report_utilization -hierarchical -file $util_hier_rpt
 
+  # export pins
+  set pin_rpt [file normalize "$stats_file/../pins.csv"]
+  write_csv -force $pin_rpt
+
   exit_if_synth_only
 
   # Power
