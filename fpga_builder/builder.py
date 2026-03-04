@@ -132,6 +132,8 @@ def build_default(
             exit(1)
         if len(projects) > 1:
             err("ERROR: Found multiple projects for device?")
+            print("Found the following projects:")
+            print("\n".join([str(project) for project in projects]))
             exit(1)
         project = projects[0]
         open_vivado_gui(project, vivado_version, run_dir)
