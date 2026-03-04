@@ -307,7 +307,8 @@ def run_vivado(
         args = [str(arg) for arg in tcl_args]
     # Defaults will be at the back so we can use these internally
     args.extend(default_args)
-    arg_string = " ".join('"' + item + '"' for item in args)
+    # Use curly braces for TCL arguments to avoid path parsing issues on Windows
+    arg_string = " ".join('{' + item + '}' for item in args)
     cmd_string = f"{vivado_cmd} -mode batch -log '{log}' -nojournal -source '{script_path}' -tclargs {arg_string}"
     if not run_dir.exists():
         run_dir.mkdir(parents=True)
