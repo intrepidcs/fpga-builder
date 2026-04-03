@@ -290,8 +290,12 @@ def run_sdk(script, tcl_args=None, version=None):
 def get_xsct_cmd(version):
     xsct_cmd = shutil.which("xsct")
     if xsct_cmd is not None:
-        xsct_version = Path(xsct_cmd).parent.parent.name
-        if xsct_version == version:
+        xsct_path = Path(xsct_cmd)
+        if (
+            xsct_path.parent.parent.name == version
+            or xsct_path.parent.parent.parent.name == version
+        ):
+            print(f"Found Vivado {version} on PATH at {xsct_cmd}")
             # Easy enough, the one on path was what we wanted
             return xsct_cmd
 
@@ -316,6 +320,11 @@ def get_xsct_cmd(version):
 
     # Last chance, try guessing off the usual install path
     xsct_cmd = Path(f"C:/Xilinx/Vitis/{version}/bin/xsct{XILINX_BIN_EXTENSION}")
+    if xsct_cmd.exists():
+        return xsct_cmd
+
+    # Last chance, try guessing off the usual install path
+    xsct_cmd = Path(f"C:/Xilinx/{version}/Vitis/bin/xsct{XILINX_BIN_EXTENSION}")
     if xsct_cmd.exists():
         return xsct_cmd
 
