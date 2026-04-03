@@ -111,32 +111,31 @@ def build_default(
     do_build = args.command in BUILD_COMMANDS
     do_deploy = args.command in DEPLOY_COMMANDS
     if do_build and args.gui:
-        if len(devices) > 1:
-            err("ERROR: Can only open one device in gui")
-            exit(1)
         if do_deploy:
             err("ERROR: Can't combine gui with deploy")
             exit(1)
-        device = devices[0]
-        if run_dirs:
-            run_dir = run_dirs[device]
-        else:
-            run_dir = caller_dir() / "build" / device
-        if vivado_versions:
-            vivado_version = vivado_versions[device]
-        else:
-            vivado_version = "2019.1"
-        projects = list(run_dir.rglob("*.xpr"))
-        if not projects:
-            err("ERROR: No project found.  Maybe need to generate first?")
-            exit(1)
-        if len(projects) > 1:
-            err("ERROR: Found multiple projects for device?")
-            print("Found the following projects:")
-            print("\n".join([str(project) for project in projects]))
-            exit(1)
-        project = projects[0]
-        open_vivado_gui(project, vivado_version, run_dir)
+        for device in devices:
+            if run_dirs:
+                run_dir = run_dirs[device]
+            else:
+                run_dir = caller_dir() / "build" / device
+            if vivado_versions:
+                vivado_version = vivado_versions[device]
+            else:
+                vivado_version = "2019.1"
+            projects = list(run_dir.rglob("*.xpr"))
+            if not projects:
+                err(
+                    f"ERROR: No project found for {device}. Maybe need to generate first?"
+                )
+                exit(1)
+            if len(projects) > 1:
+                err(f"ERROR: Found multiple projects for device {device}?")
+                print("Found the following projects:")
+                print("\n".join([str(project) for project in projects]))
+                exit(1)
+            project = projects[0]
+            open_vivado_gui(project, vivado_version, run_dir)
         exit()
     clean, output = repo_clean()
     if not clean:
@@ -308,7 +307,7 @@ def run_vivado(
     # Defaults will be at the back so we can use these internally
     args.extend(default_args)
     # Use curly braces for TCL arguments to avoid path parsing issues on Windows
-    arg_string = " ".join('{' + item + '}' for item in args)
+    arg_string = " ".join("{" + item + "}" for item in args)
     cmd_string = f"{vivado_cmd} -mode batch -log '{log}' -nojournal -source '{script_path}' -tclargs {arg_string}"
     if not run_dir.exists():
         run_dir.mkdir(parents=True)
@@ -354,7 +353,6 @@ def get_vivado_cmd(version):
             print(f"Found Vivado {version} on PATH at {vivado_cmd}")
             # Easy enough, the one on path was what we wanted
             return vivado_cmd
-
 
     # Didn't find it, look through environment variables
     version_name = version.replace(".", "_")
