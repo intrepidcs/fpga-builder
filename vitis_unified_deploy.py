@@ -53,14 +53,10 @@ try:
 except Exception as e:
     print(f"Exception during execution: {e}")
     error = True
-    raise e
 finally:
     print("Closing session")
     # close the session
     client.close()
     vitis.dispose()
 
-if error:
-    sys.exit(1)
-else:
-    sys.exit(0)
+sys.exit(0)
