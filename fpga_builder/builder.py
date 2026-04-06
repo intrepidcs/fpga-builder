@@ -373,6 +373,11 @@ def get_vivado_cmd(version):
     if vivado_cmd.exists():
         return vivado_cmd
 
+    # Last chance, try guessing off the usual install path
+    vivado_cmd = Path(f"C:/Xilinx/{version}/Vivado/bin/vivado{XILINX_BIN_EXTENSION}")
+    if vivado_cmd.exists():
+        return vivado_cmd
+
     # Couldn't find anything, die :(
     err(
         f"ERROR: Vivado {version} not found.  Run setup script or set {builder_vivado_env_var}"
