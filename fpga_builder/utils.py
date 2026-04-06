@@ -309,3 +309,19 @@ def check_vitis(version: str) -> int:
         return 0
     else:
         return 1
+
+
+# check version to see if SDK, Vitis, or Vitis Unified are being used
+def check_tool(version: str) -> str:
+    ver_parts = version.split(".")
+    # SDK was used prior to 2019.2
+    # Vitis Classic was used from 2019.2 to 2023.2
+    # Vitis Unified is used starting in 2024
+    if int(ver_parts[0]) >= 2024:
+        return "vitis_unified"
+    elif int(ver_parts[0]) > 2019 or (
+        int(ver_parts[0]) == 2019 and int(ver_parts[1]) >= 2
+    ):
+        return "vitis"
+    else:
+        return "sdk"

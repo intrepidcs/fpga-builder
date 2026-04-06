@@ -49,11 +49,12 @@ from .utils import (
     print,
     XILINX_BIN_EXTENSION,
     check_output,
-    check_vitis,
+    check_tool,
 )
 
 SDK_DEPLOY_SCRIPT = FILE_DIR / "../sdk_deploy.tcl"
 VITIS_DEPLOY_SCRIPT = FILE_DIR / "../vitis_deploy.tcl"
+VITIS_UNIFIED_DEPLOY_SCRIPT = FILE_DIR / "../vitis_unified_deploy.py"
 
 
 def deploy(args, device, run_dir, output_dir=None, vivado_version=None):
@@ -116,9 +117,9 @@ def deploy_(
         err(f"ERROR: Deploy directory {deploy_dir} does not exist")
         exit(1)
 
-    using_vitis = check_vitis(version)
+    tool = check_tool(version)
     hdf_dir = run_dir / "build" / device / "output"
-    hwext = "XSA" if using_vitis else "HDF"
+    hwext = "XSA" if tool != "sdk" else "HDF"
     hdfs = list(hdf_dir.glob(f"*.{hwext.lower()}"))
     assert len(hdfs) > 0, f"ERROR: No {hwext}s found in {hdf_dir}"
     assert len(hdfs) <= 1, "ERROR: Multiple {hwext}s found"
@@ -132,7 +133,10 @@ def deploy_(
         if not override_branch_check:
             verify_branch(hdf.parent, checkout_dir)
         shutil.copy(hdf, hdf_dst)
-        if using_vitis:
+        if tool == "vitis_unified":
+            hdf_dst = str(hdf_dst).replace("\\", "/")
+            changed_dir = vitis_unified_deploy(checkout_dir, hdf_dst, version, device)
+        elif tool == "vitis":
             hdf_dst = str(hdf_dst).replace("\\", "/")
             changed_dir = vitis_deploy(checkout_dir, hdf_dst, version, device)
         else:
@@ -274,6 +278,13 @@ def vitis_deploy(checkout_dir, xsa, version, device):
     return ws
 
 
+def vitis_unified_deploy(checkout_dir, xsa, version, device):
+    ws = checkout_dir / "projects" / device
+    py_args = [Path(xsa).parent.parent.parent, xsa]
+    run_vitis_unified(VITIS_UNIFIED_DEPLOY_SCRIPT, py_args, version=version)
+    return ws
+
+
 def run_sdk(script, tcl_args=None, version=None):
     if version is None:
         version = "2019.1"
@@ -284,6 +295,17 @@ def run_sdk(script, tcl_args=None, version=None):
     else:
         args_string = ""
     cmd = f"{xsct_cmd} {script} {args_string}"
+    run_cmd(cmd)
+
+
+def run_vitis_unified(script, py_args=None, version=None):
+    vitis_cmd = get_vitis_cmd(version)
+    if py_args:
+        py_args = [str(arg) for arg in py_args]
+        args_string = " ".join(py_args)
+    else:
+        args_string = ""
+    cmd = f"{vitis_cmd} -s {script} {args_string}"
     run_cmd(cmd)
 
 
@@ -331,6 +353,49 @@ def get_xsct_cmd(version):
     # Couldn't find anything, die :(
     err(
         f"ERROR: XSCT {version} not found.  Run setup script or set {builder_xsct_env_var}"
+    )
+    exit(1)
+
+
+def get_vitis_cmd(version):
+    vitis_cmd = shutil.which("vitis")
+    if vitis_cmd is not None:
+        vitis_path = Path(vitis_cmd)
+        if (
+            vitis_path.parent.parent.name == version
+            or vitis_path.parent.parent.parent.name == version
+        ):
+            print(f"Found Vitis {version} on PATH at {vitis_cmd}")
+            # Easy enough, the one on path was what we wanted
+            return vitis_cmd
+
+    # Didn't find it, look through environment variables
+    version_name = version.replace(".", "_")
+    builder_vitis_env_var = f"FPGA_BUILDER_VITIS_{version_name}_INSTALL_DIR"
+    if builder_vitis_env_var in environ:
+        vitis_install_dir = Path(environ.get(builder_vitis_env_var))
+        if vitis_install_dir.exists():
+            vitis_cmd = vitis_install_dir / f"bin/vitis{XILINX_BIN_EXTENSION}"
+            return vitis_cmd
+        else:
+            err(
+                f"Specified install dir from {builder_vitis_env_var} was {vitis_install_dir}, but does not exist"
+            )
+            exit(1)
+
+    # Last chance, try guessing off the usual install path
+    vitis_cmd = Path(f"C:/Xilinx/Vitis/{version}/bin/vitis{XILINX_BIN_EXTENSION}")
+    if vitis_cmd.exists():
+        return vitis_cmd
+
+    # Last chance, try guessing off the usual install path
+    vitis_cmd = Path(f"C:/Xilinx/{version}/Vitis/bin/vitis{XILINX_BIN_EXTENSION}")
+    if vitis_cmd.exists():
+        return vitis_cmd
+
+    # Couldn't find anything, die :(
+    err(
+        f"ERROR: Vitis {version} not found.  Run setup script or set {builder_vitis_env_var}"
     )
     exit(1)
 
