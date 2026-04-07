@@ -338,8 +338,8 @@ def vitis_deploy(checkout_dir, xsa, version, device):
 
 
 def vitis_unified_deploy(checkout_dir, xsa, version, device):
-    ws = checkout_dir / "projects" / device
-    py_args = [Path(xsa).parent.parent.parent, xsa]
+    ws = Path(xsa).parent.parent.parent
+    py_args = [ws, xsa]
     run_vitis_unified(VITIS_UNIFIED_DEPLOY_SCRIPT, py_args, version=version)
     return ws
 
