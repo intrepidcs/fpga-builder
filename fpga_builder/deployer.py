@@ -84,6 +84,92 @@ def deploy(args, device, run_dir, output_dir=None, vivado_version=None):
     )
 
 
+def _find_hardware_file(run_dir, device, tool):
+    """Find and validate the hardware file (HDF/XSA)."""
+    hdf_dir = run_dir / "build" / device / "output"
+    hwext = "XSA" if tool != "sdk" else "HDF"
+    hdfs = list(hdf_dir.glob(f"*.{hwext.lower()}"))
+
+    if len(hdfs) == 0:
+        err(f"ERROR: No {hwext}s found in {hdf_dir}")
+        exit(1)
+    if len(hdfs) > 1:
+        err(f"ERROR: Multiple {hwext}s found in {hdf_dir}")
+        exit(1)
+
+    hdf = hdfs[0].resolve()
+    if not hdf.exists():
+        err(f"ERROR: {hwext} {hdf} does not exist")
+        exit(1)
+
+    return hdf, hwext
+
+
+def _validate_deploy_dir(deploy_dir):
+    """Ensure deployment directory exists, creating it if necessary."""
+    if not deploy_dir.exists():
+        print(f"Creating deploy directory {deploy_dir}...")
+        deploy_dir.mkdir(parents=True, exist_ok=True)
+
+
+def _execute_deploy_tool(tool, checkout_dir, hdf_dst, version, device):
+    """Execute the appropriate deployment tool based on version."""
+    hdf_dst_posix = str(hdf_dst).replace("\\", "/")
+
+    if tool == "vitis_unified":
+        return vitis_unified_deploy(checkout_dir, hdf_dst_posix, version, device)
+    elif tool == "vitis":
+        return vitis_deploy(checkout_dir, hdf_dst_posix, version, device)
+    else:
+        return sdk_deploy(checkout_dir, hdf_dst, version)
+
+
+def _configure_git_user(checkout_dir):
+    """Configure git user for GitLab deployment."""
+    run_cmd(
+        'git config user.email "gitlab_deploy_user@intrepidcs.com"',
+        cwd=checkout_dir,
+        silent=False,
+    )
+    run_cmd(
+        'git config user.name "Gitlab Deploy User"',
+        cwd=checkout_dir,
+        silent=False,
+    )
+
+
+def _commit_changes(checkout_dir, changed_dir, msg, for_gitlab):
+    """Commit and optionally push changes."""
+    run_cmd(f"git add {changed_dir} -u", cwd=checkout_dir)
+    if for_gitlab:
+        _configure_git_user(checkout_dir)
+    run_cmd(f'git commit -m "{msg}"', cwd=checkout_dir)
+    if for_gitlab:
+        run_cmd("git push", cwd=checkout_dir)
+
+
+def _print_commit_message(msg, dry_run):
+    """Print commit message or warnings based on repo state."""
+    if dry_run:
+        return
+
+    if not repo_clean():
+        print(
+            "****WARNING: REPO NOT CLEAN, "
+            "THIS SHOULD NOT BE THE OFFICIAL MR BUILD****"
+        )
+        print(
+            "\tPlease rebuild after committing unsave worked "
+            "and an hdf commit message will be provided"
+        )
+    else:
+        success(
+            "Please copy the following for your commit message "
+            "after regenerating bsp:\n"
+        )
+        print(f"\t{msg}")
+
+
 def deploy_(
     run_dir,
     device,
@@ -98,80 +184,53 @@ def deploy_(
     Deploys the hdf for the provided configuration
 
     Args:
-        run_dir:               Directory where the deploy was started
-        device:                The name of the device to commit to, must be a valid project name
-        for_gitlab:            When True, uses gitlab environment variables instead of git commands.  Also commits to local repo without pushing
-        commit:                Controls whether the deploy will also auto commit
-        dry_run:               Only print, don't do anything
-        override_branch_check: Overrides check before copy that branch is the same as the hw repo
+        run_dir:      Directory where the deploy was started
+        device:       The name of the device to commit to,
+                      must be a valid project name
+        for_gitlab:   When True, uses gitlab environment variables
+                      instead of git commands. Also commits to local
+                      repo without pushing
+        commit:       Controls whether the deploy will also auto commit
+        dry_run:      Only print, don't do anything
+        override_branch_check: Overrides check before copy that branch
+                               is the same as the hw repo
 
     Returns:
         None
 
     """
-    if version is None:
-        version = "2019.1"
-    deploy_dir = (run_dir.parent / output_dir).resolve()
-    checkout_dir = get_git_root_directory(deploy_dir)
-    if not deploy_dir.exists():
-        err(f"ERROR: Deploy directory {deploy_dir} does not exist")
-        exit(1)
-
+    version = version or "2019.1"
     tool = check_tool(version)
-    hdf_dir = run_dir / "build" / device / "output"
-    hwext = "XSA" if tool != "sdk" else "HDF"
-    hdfs = list(hdf_dir.glob(f"*.{hwext.lower()}"))
-    assert len(hdfs) > 0, f"ERROR: No {hwext}s found in {hdf_dir}"
-    assert len(hdfs) <= 1, "ERROR: Multiple {hwext}s found"
-    hdf = hdfs[0].resolve()
-    assert hdf.exists(), f"HDF {hdf} does not exist"
-    hdf_dst = (deploy_dir / hdf.name).resolve()
-    hdf_dir = hdf_dst.parent
-    assert hdf_dir.exists(), f"{hwext} destination {hdf_dir} does not exist"
-    print(f"Copying {hwext} from {hdf} to {hdf_dst}...")
-    if not dry_run:
-        if not override_branch_check:
-            verify_branch(hdf.parent, checkout_dir)
-        shutil.copy(hdf, hdf_dst)
-        if tool == "vitis_unified":
-            hdf_dst = str(hdf_dst).replace("\\", "/")
-            changed_dir = vitis_unified_deploy(checkout_dir, hdf_dst, version, device)
-        elif tool == "vitis":
-            hdf_dst = str(hdf_dst).replace("\\", "/")
-            changed_dir = vitis_deploy(checkout_dir, hdf_dst, version, device)
-        else:
-            changed_dir = sdk_deploy(checkout_dir, hdf_dst, version)
 
+    # Validate deployment directory
+    deploy_dir = (run_dir.parent / output_dir).resolve()
+    _validate_deploy_dir(deploy_dir)
+    checkout_dir = get_git_root_directory(deploy_dir)
+
+    # Find hardware file
+    hdf, hwext = _find_hardware_file(run_dir, device, tool)
+    hdf_dst = (deploy_dir / hdf.name).resolve()
+
+    # Copy and deploy
+    print(f"Copying {hwext} from {hdf} to {hdf_dst}...")
+    if dry_run:
+        msg = f"Update hardware from {get_current_commit_url()}"
+        _print_commit_message(msg, dry_run=False)
+        return
+
+    if not override_branch_check:
+        verify_branch(hdf.parent, checkout_dir)
+
+    shutil.copy(hdf, hdf_dst)
+    changed_dir = _execute_deploy_tool(tool, checkout_dir, hdf_dst, version, device)
+
+    # Handle git commit
     msg = f"Update hardware from {get_current_commit_url()}"
-    if commit and not dry_run:
+    if commit:
         print(f"Committing {hdf_dst}...")
-        run_cmd(f"git add {changed_dir} -u", cwd=checkout_dir)
-        if for_gitlab:
-            run_cmd(
-                'git config user.email "gitlab_deploy_user@intrepidcs.com"',
-                cwd=checkout_dir,
-                silent=False,
-            )
-            run_cmd(
-                'git config user.name "Gitlab Deploy User"',
-                cwd=checkout_dir,
-                silent=False,
-            )
-        run_cmd(f'git commit -m "{msg}"', cwd=checkout_dir)
-        if for_gitlab:
-            run_cmd("git push", cwd=checkout_dir)
-    elif not repo_clean():
-        print(
-            "****WARNING: REPO NOT CLEAN, THIS SHOULD NOT BE THE OFFICIAL MR BUILD****"
-        )
-        print(
-            "\tPlease rebuild after committing unsave worked and an hdf commit message will be provided"
-        )
+        _commit_changes(checkout_dir, changed_dir, msg, for_gitlab)
     else:
-        success(
-            "Please copy the following for your commit message after regenerating bsp:\n"
-        )
-        print(f"\t{msg}")
+        _print_commit_message(msg, dry_run)
 
 
 def get_current_branch(for_gitlab=False, cwd=None):
