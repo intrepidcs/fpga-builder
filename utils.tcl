@@ -63,6 +63,7 @@ set setup_time 0
 # Build tracking variables
 set worst_slack 0
 set lut_util 0
+set slice_util 0
 set ram_util 0
 set dsp_util 0
 set mmcm_util 0
