@@ -70,6 +70,175 @@ set pll_util 0
 set ultra_ram_util 0
 set total_power 0
 
+proc find_util_column_in_lines {lines pattern} {
+  # Find the Util column index by locating the header near the pattern line
+  # Returns a list: {column_index resource_line}
+  
+  set line_num 0
+  set pattern_line_num -1
+  set pattern_line ""
+  
+  # Find the line with the pattern
+  # Split by | and check for exact match in first column to avoid substring matches
+  foreach line $lines {
+    if {[string first "|" $line] > -1} {
+      set line_split [split $line "|"]
+      # Check the first meaningful column (usually index 1)
+      if {[llength $line_split] > 1} {
+        set first_col [string trim [lindex $line_split 1]]
+        # Remove trailing asterisks and other special characters
+        set first_col [string trimright $first_col "*"]
+        set first_col [string trim $first_col]
+        if {$first_col == $pattern} {
+          set pattern_line_num $line_num
+          set pattern_line $line
+          break
+        }
+      }
+    }
+    incr line_num
+  }
+  
+  if {$pattern_line_num == -1} {
+    puts "WARNING: Could not find pattern '$pattern' in report"
+    return {-1 ""}
+  }
+  
+  # Search backwards to find the header line with "Util"
+  set header_line_num [expr $pattern_line_num - 1]
+  while {$header_line_num >= 0} {
+    set line [lindex $lines $header_line_num]
+    if {[string first "Util" $line] > -1 && [string first "|" $line] > -1} {
+      # Found the header line
+      set header_split [split $line "|"]
+      set col_idx 0
+      foreach col $header_split {
+        if {[string first "Util" $col] > -1} {
+          return [list $col_idx $pattern_line]
+        }
+        incr col_idx
+      }
+    }
+    incr header_line_num -1
+  }
+  
+  # No header found
+  puts "WARNING: Could not find Util header for pattern '$pattern'"
+  return {-1 ""}
+}
+
+proc get_util_value {report_file pattern} {
+  # Get utilization value for a specific resource pattern
+  # Reads the file, finds the header, and extracts the value from the Util column
+  
+  # Read the entire file
+  set fp [open $report_file r]
+  set file_data [read $fp]
+  close $fp
+  set lines [split $file_data "\n"]
+  
+  # Find the Util column and resource line
+  set result [find_util_column_in_lines $lines $pattern]
+  set util_col_idx [lindex $result 0]
+  set resource_line [lindex $result 1]
+  
+  if {$util_col_idx == -1} {
+    # Header not found or pattern not found (warning already printed by find_util_column_in_lines)
+    return ""
+  }
+  
+  # Extract the value from the Util column
+  set line_split [split $resource_line "|"]
+  set util_val [string trim [lindex $line_split $util_col_idx]]
+  
+  # Remove % sign if present
+  set util_val [string map {"%" ""} $util_val]
+  
+  return $util_val
+}
+
+proc parse_utilization_report {util_rpt} {
+  # Parse a utilization report and extract all resource utilization values
+  # Sets global variables and prints warnings/info messages
+  # Can be called standalone for testing: parse_utilization_report "path/to/utilization.rpt"
+  
+  puts "Parsing utilization report: $util_rpt"
+  
+  # Parse LUT utilization - try both naming conventions
+  global lut_util
+  set lut_util [get_util_value $util_rpt "Slice LUTs"]
+  if { $lut_util == ""} {
+    set lut_util [get_util_value $util_rpt "CLB LUTs"]
+  }
+  if { $lut_util != "" && $lut_util >= 80} {
+    puts "CRITICAL WARNING: Part LUTs are nearly full ($lut_util %), expect timing problems if anything changed!!"
+  } elseif { $lut_util != ""} {
+    puts "LUT utilization is $lut_util %"
+  }
+
+  # Parse Slice utilization
+  global slice_util
+  set slice_util [get_util_value $util_rpt "Slice"]
+  if { $slice_util != "" && $slice_util >= 80} {
+    puts "CRITICAL WARNING: Part Slices are nearly full ($slice_util %)!!"
+  } elseif { $slice_util != ""} {
+    puts "Slice utilization is $slice_util %"
+  }
+
+  # Parse RAM utilization
+  global ram_util
+  set ram_util [get_util_value $util_rpt "Block RAM Tile"]
+  if { $ram_util != "" && $ram_util >= 85} {
+    puts "CRITICAL WARNING: Part RAM is nearly full ($ram_util %), expect issues inserting ILA!!"
+  } elseif { $ram_util != ""} {
+    puts "RAM utilization is $ram_util %"
+  }
+
+  # Parse UltraRAM utilization
+  global ultra_ram_util
+  set ultra_ram_util [get_util_value $util_rpt "URAM"]
+  if { $ultra_ram_util != "" && $ultra_ram_util >= 85} {
+    puts "CRITICAL WARNING: Part UltraRAM is nearly full ($ultra_ram_util %)!!"
+  } elseif { $ultra_ram_util != ""} {
+    puts "UltraRAM utilization is $ultra_ram_util %"
+  }
+
+  # Parse DSP utilization
+  global dsp_util
+  set dsp_util [get_util_value $util_rpt "DSPs"]
+  if { $dsp_util != "" && $dsp_util >= 85} {
+    puts "CRITICAL WARNING: Part DSPs are nearly full ($dsp_util %)!!"
+  } elseif { $dsp_util != ""} {
+    puts "DSP utilization is $dsp_util %"
+  }
+
+  # Parse MMCM utilization - try specific and generic patterns
+  global mmcm_util
+  set mmcm_util [get_util_value $util_rpt "MMCME2_ADV"]
+  if { $mmcm_util == ""} {
+    set mmcm_util [get_util_value $util_rpt "MMCM"]
+  }
+  if { $mmcm_util != "" && $mmcm_util >= 80} {
+    puts "CRITICAL WARNING: Part MMCMs are nearly full ($mmcm_util %)!!"
+  } elseif { $mmcm_util != ""} {
+    puts "MMCM utilization is $mmcm_util %"
+  }
+
+  # Parse PLL utilization - try specific and generic patterns
+  global pll_util
+  set pll_util [get_util_value $util_rpt "PLLE2_ADV"]
+  if { $pll_util == ""} {
+    set pll_util [get_util_value $util_rpt "PLL"]
+  }
+  if { $pll_util != "" && $pll_util >= 80} {
+    puts "CRITICAL WARNING: Part PLLs are nearly full ($pll_util %)!!"
+  } elseif { $pll_util != ""} {
+    puts "PLL utilization is $pll_util %"
+  }
+  
+  puts "Utilization parsing complete"
+}
+
 proc build {proj_name top_name proj_dir} {
   global synth_time
   global total_start
@@ -144,71 +313,9 @@ proc build {proj_name top_name proj_dir} {
   # Utilization
   set util_rpt [file normalize "$stats_file/../utilization.rpt"]
   report_utilization -file $util_rpt
-  set lut_line [lindex [grep "Slice LUTs" $util_rpt] 0]
-  if { $lut_line == ""} {
-    set lut_line [lindex [grep "CLB LUTs" $util_rpt] 0]
-    set lut_column 6
-  } else {
-    set lut_column 5
-  }
-  set lut_line_split [split $lut_line "|"]
-  global lut_util
-  set lut_util [string trim [lindex $lut_line_split $lut_column]]
-  if { $lut_util >= 80} {
-    puts "CRITICAL WARNING: Part is nearly full ($lut_util %), expect timing problems if anything changed!!"
-  } else {
-    puts "LUT utilization is $lut_util %"
-  }
-
-  set ram_line [lindex [grep "Block RAM Tile" $util_rpt] 0]
-  set ram_line_split [split $ram_line "|"]
-  global ram_util
-  set ram_util [string trim [lindex $ram_line_split $lut_column]]
-  if { $ram_util >= 85} {
-    puts "CRITICAL WARNING: Part RAM is nearly full ($ram_util %), expect issues inserting ILA!!"
-  } else {
-    puts "RAM utilization is $ram_util %"
-  }
-
-  set uram_line [lindex [grep "URAM" $util_rpt] 0]
-  set uram_line_split [split $uram_line "|"]
-  global ultra_ram_util
-  set ultra_ram_util [string trim [lindex $uram_line_split $lut_column]]
-  if { $ultra_ram_util >= 85} {
-    puts "CRITICAL WARNING: Part UltraRAM is nearly full ($ultra_ram_util %)!!"
-  } else {
-    puts "UltraRAM utilization is $ultra_ram_util %"
-  }
-
-  set dsp_line [lindex [grep "DSPs" $util_rpt] 0]
-  set dsp_line_split [split $dsp_line "|"]
-  global dsp_util
-  set dsp_util [string trim [lindex $dsp_line_split $lut_column]]
-  if { $dsp_util >= 85} {
-    puts "CRITICAL WARNING: Part DSPs are nearly full ($dsp_util %)!!"
-  } else {
-    puts "DSP utilization is $dsp_util %"
-  }
-
-  set mmcm_line [lindex [grep "MMCM" $util_rpt] 0]
-  set mmcm_line_split [split $mmcm_line "|"]
-  global mmcm_util
-  set mmcm_util [string trim [lindex $mmcm_line_split $lut_column]]
-  if { $mmcm_util >= 80} {
-    puts "CRITICAL WARNING: Part MMCMs are nearly full ($mmcm_util %)!!"
-  } else {
-    puts "MMCM utilization is $mmcm_util %"
-  }
-
-  set pll_line [lindex [grep "PLL" $util_rpt] 0]
-  set pll_line_split [split $pll_line "|"]
-  global pll_util
-  set pll_util [string trim [lindex $pll_line_split $lut_column]]
-  if { $pll_util >= 80} {
-    puts "CRITICAL WARNING: Part PLLs are nearly full ($pll_util %)!!"
-  } else {
-    puts "PLL utilization is $pll_util %"
-  }
+  
+  # Parse utilization report
+  parse_utilization_report $util_rpt
 
   set util_hier_rpt [file normalize "$stats_file/../utilization_hierarchical.rpt"]
   report_utilization -hierarchical -file $util_hier_rpt
@@ -294,6 +401,7 @@ proc report_stats {} {
   # Build stats
   global worst_slack
   global lut_util
+  global slice_util
   global ram_util
   global ultra_ram_util
   global dsp_util
@@ -314,6 +422,7 @@ proc report_stats {} {
   puts $stats_chan "# Build stats"
   puts $stats_chan "worst_slack:    $worst_slack ns"
   puts $stats_chan "lut_util:       ${lut_util}%"
+  puts $stats_chan "slice_util:     ${slice_util}%"
   puts $stats_chan "ram_util:       ${ram_util}%"
   puts $stats_chan "ultra_ram_util: ${ultra_ram_util}%"
   puts $stats_chan "dsp_util:       ${dsp_util}%"
