@@ -131,6 +131,10 @@ proc build {proj_name top_name proj_dir} {
     set timing_pass [expr {$worst_slack >= 0}]
     if {$timing_pass == 0} {
       puts "ERROR: Failed to meet timing! Worst path slack was $worst_slack"
+      puts "\n=========================================="
+      puts "Top Failing Timing Paths:"
+      puts "==========================================\n"
+      report_timing -delay_type min_max -max_paths 10 -slack_less_than 0 -sort_by slack
       exit 1
     } else {
       puts "Timing met with $worst_slack ns of slack"
