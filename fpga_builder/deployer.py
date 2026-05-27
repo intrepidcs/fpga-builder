@@ -142,8 +142,7 @@ def _commit_changes(checkout_dir, changed_dir, msg, for_gitlab):
     """Commit and optionally push changes."""
     # Make changed_dir relative to checkout_dir and use POSIX style
     rel_path = Path(changed_dir).relative_to(Path(checkout_dir)).as_posix()
-    # Use -f to force add files that might be in .gitignore
-    run_cmd(f"git add -f {rel_path}", cwd=checkout_dir, silent=False, line_handler=print)
+    run_cmd(f"git add -u {rel_path}", cwd=checkout_dir, silent=False, line_handler=print)
     if for_gitlab:
         _configure_git_user(checkout_dir)
     run_cmd(f'git commit -m "{msg}"', cwd=checkout_dir)
