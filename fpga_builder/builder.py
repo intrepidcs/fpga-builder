@@ -207,6 +207,7 @@ def build_default(
 
 def open_vivado_gui(project, vivado_version, run_dir):
     vivado_cmd = get_vivado_cmd(vivado_version)
+    disable_local_tcl_store()
     cmd = f"{vivado_cmd} {project}"
     run_cmd(cmd, blocking=False, cwd=run_dir)
 
@@ -274,6 +275,7 @@ def run_vivado(
     if version is None:
         version = "2019.1"
     vivado_cmd = get_vivado_cmd(version)
+    disable_local_tcl_store()
     script_path = Path(build_tcl).resolve()
     stats_file = get_stats_file(run_dir, num_threads)
     output_dir = stats_file.parent
@@ -325,6 +327,37 @@ def run_vivado(
             info(line)
 
     run_cmd(cmd_string, cwd=run_dir, line_handler=line_handler)
+
+
+def disable_local_tcl_store():
+    """
+    Keeps Vivado from initializing its per-user Xilinx Tcl Store on startup
+
+    Every Vivado process (including each out-of-context IP synthesis run) calls
+    tclapp::create_tclstore/update_tclstore at startup, which writes to a single
+    shared directory under %APPDATA%/Xilinx/Vivado/<version>/XilinxTclStore.  With
+    -jobs N those N children all start at once and race on it, and the losers print
+
+        ERROR: [Common 17-1257] Failed to create directory 'C'.
+
+    ('C' is the truncated C:/Users/... path.)  Synthesis itself still succeeds, but
+    the ERROR in the log makes Vivado mark the run failed, so wait_on_run aborts the
+    build with [Vivado 12-13638] Failed runs(s).
+
+    This makes tclapp::use_local return 0, so the create/update is skipped entirely
+    and the read-only store in the install tree is used instead.  projutils and
+    designutils still load, so nothing in the build flow changes.
+
+    Set for both scripted builds and open_vivado_gui, since synthesis launched from
+    the GUI spawns the same parallel out-of-context runs and hits the same race.  The
+    tradeoff is that this also stops Vivado persisting other user-area data, so the
+    GUI will not remember preferences such as window layout or recent projects.
+
+    Returns:
+        None
+
+    """
+    environ["XILINX_LOCAL_USER_DATA"] = "no"
 
 
 def get_vivado_cmd(version):
