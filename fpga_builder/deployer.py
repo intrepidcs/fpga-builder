@@ -335,10 +335,8 @@ def sdk_deploy(checkout_dir, hdf, version):
 
 
 def vitis_deploy(checkout_dir, xsa, version, device):
-    ws = checkout_dir / "projects" / device
-    platform_tcl = ws / "platform.tcl"
-    run_sdk(platform_tcl, version=version)
-    return ws
+    # XSA is already copied by deploy_, nothing to regenerate
+    return Path(xsa).parent
 
 
 def vitis_unified_deploy(checkout_dir, xsa, version, device):
